@@ -3,59 +3,45 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Zurich Weather Charts</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"><\/script>
+  <title>Zurich Weather</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg:     #ffffff;
-      --card:   #f7f7f7;
-      --text:   #111111;
-      --muted:  #999999;
-      --accent: #2563eb;
-      --border: #ebebeb;
-      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-    }
     body {
-      background: var(--bg);
-      font-family: var(--sans);
-      color: var(--text);
+      background: #fff;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color: #111;
       padding: 16px;
     }
     .header {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
-    .title { font-size: 13px; font-weight: 600; letter-spacing: -0.1px; }
-    .sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    .upd   { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .title { font-size: 13px; font-weight: 600; }
+    .sub   { font-size: 11px; color: #999; margin-top: 2px; }
+    .upd   { font-size: 11px; color: #aaa; white-space: nowrap; }
     .section {
-      border: 1px solid var(--border);
+      border: 1px solid #eee;
       border-radius: 8px;
       padding: 10px 12px 8px;
       margin-bottom: 8px;
     }
     .sec-title {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
+      font-size: 10px; font-weight: 600;
+      color: #aaa; text-transform: uppercase;
+      letter-spacing: 0.6px; margin-bottom: 8px;
+    }
+    .chart-wrap      { position: relative; height: 160px; }
+    .chart-wrap.tall { position: relative; height: 190px; }
+    .error {
+      background: #fef2f2; border: 1px solid #fecaca;
+      color: #b91c1c; padding: 10px; border-radius: 8px;
+      font-size: 12px; line-height: 1.5; white-space: pre-wrap;
       margin-bottom: 8px;
     }
-    .chart-wrap        { position: relative; height: 160px; }
-    .chart-wrap.tall   { height: 190px; }
-    .error {
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      color: #b91c1c;
-      padding: 10px; border-radius: 8px;
-      font-size: 12px; line-height: 1.4; white-space: pre-wrap;
-    }
-    .foot { font-size: 11px; color: var(--muted); margin-top: 6px; }
-    a { color: var(--accent); text-decoration: none; }
+    .foot { font-size: 11px; color: #aaa; margin-top: 6px; }
+    a { color: #2563eb; text-decoration: none; }
   </style>
 </head>
 <body>
@@ -66,222 +52,246 @@
     </div>
     <div class="upd" id="upd"></div>
   </div>
-
   <div id="err"></div>
-
   <div class="section">
     <div class="sec-title">Temperature &amp; Wind</div>
     <div class="chart-wrap tall"><canvas id="cW"></canvas></div>
   </div>
-
   <div class="section">
     <div class="sec-title">Sunshine (min / h)</div>
     <div class="chart-wrap"><canvas id="cS"></canvas></div>
   </div>
-
   <div class="section">
-    <div class="sec-title">Pollen (grains / m&sup3; per hour)</div>
+    <div class="sec-title">Pollen (grains / m&#179; per hour)</div>
     <div class="chart-wrap"><canvas id="cP"></canvas></div>
   </div>
-
   <div class="foot">
-    <a href="https://open-meteo.com/en/docs/meteoswiss-api" target="_blank" rel="noreferrer">Open-Meteo MeteoSwiss ICON</a>
-    &middot;
-    <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noreferrer">Air Quality API</a>
+    <a href="https://open-meteo.com" target="_blank">Open-Meteo</a> &middot;
+    <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank">Air Quality API</a>
   </div>
 
-<script>
-(async function () {
-  const LAT = 47.3769, LON = 8.5417, TZ = 'Europe/Zurich';
-
-  const wUrl = new URL('https://api.open-meteo.com/v1/forecast');
-  wUrl.searchParams.set('latitude',  LAT);
-  wUrl.searchParams.set('longitude', LON);
-  wUrl.searchParams.set('timezone',  TZ);
-  wUrl.searchParams.set('models',    'meteoswiss_icon_ch1');
-  wUrl.searchParams.set('forecast_days', '3');
-  wUrl.searchParams.set('hourly', 'temperature_2m,wind_speed_10m,wind_direction_10m,sunshine_duration');
-
-  const aqUrl = new URL('https://air-quality-api.open-meteo.com/v1/air-quality');
-  aqUrl.searchParams.set('latitude',  LAT);
-  aqUrl.searchParams.set('longitude', LON);
-  aqUrl.searchParams.set('timezone',  TZ);
-  aqUrl.searchParams.set('forecast_hours', '72');
-  aqUrl.searchParams.set('hourly', 'alder_pollen,birch_pollen,grass_pollen');
-
-  // Wind-arrow plugin
-  Chart.register({
-    id: 'windArrows',
-    afterDatasetsDraw (chart) {
-      const meta = chart._windMeta;
-      if (!meta) return;
-      const { dirs, spds } = meta;
-      const { ctx, scales, chartArea } = chart;
-      ctx.save();
-      for (let i = 0; i < dirs.length; i += 3) {
-        const dir = dirs[i], spd = spds[i];
-        if (!Number.isFinite(dir) || !Number.isFinite(spd)) continue;
-        const x   = scales.x.getPixelForValue(i);
-        const y   = chartArea.bottom + 16;
-        const rad = ((dir + 180) % 360 - 90) * Math.PI / 180;
-        const len = 5 + Math.min(spd / 60, 1) * 6;
-        const dx  = Math.cos(rad) * len, dy = Math.sin(rad) * len;
-        const HL  = 3.5, HA = 0.5;
-        ctx.strokeStyle = '#2563eb';
-        ctx.globalAlpha = 0.55;
-        ctx.lineWidth   = 1.2;
-        ctx.lineCap     = 'round';
-        ctx.beginPath();
-        ctx.moveTo(x - dx * .5, y - dy * .5);
-        ctx.lineTo(x + dx * .5, y + dy * .5);
-        ctx.moveTo(x + dx * .5, y + dy * .5);
-        ctx.lineTo(x + dx*.5 - HL*Math.cos(rad-HA), y + dy*.5 - HL*Math.sin(rad-HA));
-        ctx.moveTo(x + dx * .5, y + dy * .5);
-        ctx.lineTo(x + dx*.5 - HL*Math.cos(rad+HA), y + dy*.5 - HL*Math.sin(rad+HA));
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      ctx.restore();
-    }
-  });
-
-  // Chart.js defaults — light
-  Chart.defaults.color       = '#999999';
-  Chart.defaults.borderColor = '#ebebeb';
-  Chart.defaults.font.family = 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
-  Chart.defaults.font.size   = 11;
-
-  const fmtHM  = new Intl.DateTimeFormat('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false, timeZone:TZ });
-  const fmtDay = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'2-digit', timeZone:TZ });
-
-  function xAxis (labels) {
-    return {
-      grid:   { color: '#f0f0f0' },
-      border: { color: '#e0e0e0' },
-      ticks:  {
-        maxRotation: 0, autoSkip: false, font: { size: 10 }, color: '#aaaaaa',
-        callback: (_, i) => labels[i] ?? null
-      }
-    };
-  }
-
-  try {
-    const [rW, rAQ] = await Promise.all([
-      fetch(wUrl.toString(),  { cache: 'no-store' }),
-      fetch(aqUrl.toString(), { cache: 'no-store' })
-    ]);
-    if (!rW.ok)  throw new Error('Weather HTTP '     + rW.status);
-    if (!rAQ.ok) throw new Error('Air quality HTTP ' + rAQ.status);
-
-    const wData  = await rW.json();
-    const aqData = await rAQ.json();
-    const h = wData.hourly;
-    const N = Math.min(h.time.length, 72);
-    const idx = Array.from({ length: N }, (_, i) => i);
-
-    const labels = h.time.slice(0, N).map(t => {
-      const hh = parseInt(t.slice(11,13), 10);
-      const dt = new Date(t);
-      if (hh === 0)       return fmtDay.format(dt);
-      if (hh % 6 === 0)   return fmtHM.format(dt);
-      return null;
-    });
-
-    const temps    = h.temperature_2m.slice(0, N);
-    const winds    = h.wind_speed_10m.slice(0, N);
-    const windDirs = h.wind_direction_10m.slice(0, N);
-    const sun      = h.sunshine_duration.slice(0, N).map(v => Number.isFinite(v) ? +(v/60).toFixed(1) : 0);
-    const aqH      = aqData.hourly || {};
-    const alder    = (aqH.alder_pollen || []).slice(0, N);
-    const birch    = (aqH.birch_pollen  || []).slice(0, N);
-    const grass    = (aqH.grass_pollen  || []).slice(0, N);
-
-    // Chart 1: Temperature + Wind
-    const cW = new Chart(document.getElementById('cW').getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: idx,
-        datasets: [
-          {
-            label: 'Temp \u00b0C',
-            data: temps, yAxisID: 'yT',
-            borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.06)',
-            borderWidth: 2, pointRadius: 0, tension: 0.35, fill: true
-          },
-          {
-            label: 'Wind km/h',
-            data: winds, yAxisID: 'yW',
-            borderColor: '#2563eb', backgroundColor: 'transparent',
-            borderWidth: 1.5, pointRadius: 0, tension: 0.25, borderDash: [3,2]
-          }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        layout: { padding: { bottom: 28 } },
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { position:'top', align:'end', labels:{ boxWidth:10, padding:10, font:{size:11}, color:'#555' } },
-          tooltip: { callbacks: { label: ctx => ctx.datasetIndex===0 ? ` ${ctx.parsed.y.toFixed(1)}\u00b0C` : ` ${ctx.parsed.y.toFixed(0)} km/h` } }
-        },
-        scales: {
-          x:  xAxis(labels),
-          yT: { position:'left',  grid:{ color:'#f0f0f0' }, border:{ color:'#e0e0e0' }, ticks:{ callback: v => v+'\u00b0', color:'#f97316', font:{size:10} } },
-          yW: { position:'right', grid:{ drawOnChartArea:false }, border:{ color:'#e0e0e0' }, ticks:{ callback: v => v+' km/h', color:'#2563eb', font:{size:10} } }
-        }
-      }
-    });
-    cW._windMeta = { dirs: windDirs, spds: winds };
-
-    // Chart 2: Sunshine
-    new Chart(document.getElementById('cS').getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: idx,
-        datasets: [{ label:'Sunshine min', data:sun, backgroundColor:'rgba(234,179,8,0.5)', borderColor:'rgba(234,179,8,0.8)', borderWidth:0, borderRadius:2 }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => ` ${ctx.parsed.y.toFixed(0)} min` } } },
-        scales: {
-          x: xAxis(labels),
-          y: { min:0, max:60, grid:{ color:'#f0f0f0' }, border:{ color:'#e0e0e0' }, ticks:{ callback: v => v+' min', font:{size:10} } }
-        }
-      }
-    });
-
-    // Chart 3: Pollen
-    new Chart(document.getElementById('cP').getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: idx,
-        datasets: [
-          { label:'Alder', data:alder, borderColor:'#16a34a', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 },
-          { label:'Birch', data:birch, borderColor:'#9333ea', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 },
-          { label:'Grass', data:grass, borderColor:'#ca8a04', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position:'top', align:'end', labels:{ boxWidth:10, padding:10, font:{size:11}, color:'#555' } },
-          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${Number.isFinite(ctx.parsed.y) ? ctx.parsed.y.toFixed(0) : '\u2013'} /m\u00b3` } }
-        },
-        scales: {
-          x: xAxis(labels),
-          y: { min:0, grid:{ color:'#f0f0f0' }, border:{ color:'#e0e0e0' }, ticks:{ font:{size:10} } }
-        }
-      }
-    });
-
-    document.getElementById('upd').textContent =
-      'Updated ' + new Date().toLocaleString('en-GB', { hour:'2-digit', minute:'2-digit' });
-
-  } catch (err) {
+  <script>
+  function showErr(msg) {
     document.getElementById('err').innerHTML =
-      `<div class="error">Could not load widget.\n\n${err}\n\nWeather: ${wUrl}\n\nAir: ${aqUrl}</div>`;
+      '<div class="error">' + msg + '</div>';
   }
-})();
-</script>
+
+  // Load Chart.js dynamically then run
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+  s.onerror = function() { showErr('Failed to load Chart.js from CDN.'); };
+  s.onload  = function() { runCharts(); };
+  document.head.appendChild(s);
+
+  function runCharts() {
+    try {
+
+      var LAT = 47.3769, LON = 8.5417, TZ = 'Europe/Zurich';
+
+      // Wind-arrow plugin
+      Chart.register({
+        id: 'windArrows',
+        afterDatasetsDraw: function(chart) {
+          var meta = chart._windMeta;
+          if (!meta) return;
+          var dirs = meta.dirs, spds = meta.spds;
+          var ctx = chart.ctx, scales = chart.scales, ca = chart.chartArea;
+          ctx.save();
+          for (var i = 0; i < dirs.length; i += 3) {
+            var dir = dirs[i], spd = spds[i];
+            if (!isFinite(dir) || !isFinite(spd)) continue;
+            var x   = scales.x.getPixelForValue(i);
+            var y   = ca.bottom + 16;
+            var rad = ((dir + 180) % 360 - 90) * Math.PI / 180;
+            var len = 5 + Math.min(spd / 60, 1) * 6;
+            var dx  = Math.cos(rad) * len, dy = Math.sin(rad) * len;
+            var HL  = 3.5, HA = 0.5;
+            ctx.strokeStyle = '#2563eb';
+            ctx.globalAlpha = 0.6;
+            ctx.lineWidth   = 1.2;
+            ctx.lineCap     = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x - dx * 0.5, y - dy * 0.5);
+            ctx.lineTo(x + dx * 0.5, y + dy * 0.5);
+            ctx.moveTo(x + dx * 0.5, y + dy * 0.5);
+            ctx.lineTo(x + dx*0.5 - HL*Math.cos(rad-HA), y + dy*0.5 - HL*Math.sin(rad-HA));
+            ctx.moveTo(x + dx * 0.5, y + dy * 0.5);
+            ctx.lineTo(x + dx*0.5 - HL*Math.cos(rad+HA), y + dy*0.5 - HL*Math.sin(rad+HA));
+            ctx.stroke();
+          }
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+      });
+
+      Chart.defaults.color       = '#aaa';
+      Chart.defaults.borderColor = '#eee';
+      Chart.defaults.font.size   = 11;
+
+      var wUrl  = 'https://api.open-meteo.com/v1/forecast'
+        + '?latitude=' + LAT + '&longitude=' + LON
+        + '&timezone=' + encodeURIComponent(TZ)
+        + '&models=meteoswiss_icon_ch1'
+        + '&forecast_days=3'
+        + '&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,sunshine_duration';
+
+      var aqUrl = 'https://air-quality-api.open-meteo.com/v1/air-quality'
+        + '?latitude=' + LAT + '&longitude=' + LON
+        + '&timezone=' + encodeURIComponent(TZ)
+        + '&forecast_hours=72'
+        + '&hourly=alder_pollen,birch_pollen,grass_pollen';
+
+      Promise.all([
+        fetch(wUrl,  { cache: 'no-store' }),
+        fetch(aqUrl, { cache: 'no-store' })
+      ]).then(function(responses) {
+        if (!responses[0].ok) throw new Error('Weather HTTP ' + responses[0].status);
+        if (!responses[1].ok) throw new Error('Air quality HTTP ' + responses[1].status);
+        return Promise.all([responses[0].json(), responses[1].json()]);
+      }).then(function(data) {
+        var h   = data[0].hourly;
+        var aqH = (data[1].hourly) || {};
+        var N   = Math.min(h.time.length, 72);
+        var idx = Array.from({length: N}, function(_, i) { return i; });
+
+        var fmtHM  = new Intl.DateTimeFormat('en-GB', {hour:'2-digit',minute:'2-digit',hour12:false,timeZone:TZ});
+        var fmtDay = new Intl.DateTimeFormat('en-GB', {weekday:'short',day:'2-digit',month:'2-digit',timeZone:TZ});
+        var labels = h.time.slice(0, N).map(function(t) {
+          var hh = parseInt(t.slice(11,13), 10);
+          var dt = new Date(t);
+          if (hh === 0)      return fmtDay.format(dt);
+          if (hh % 6 === 0)  return fmtHM.format(dt);
+          return null;
+        });
+
+        var temps  = h.temperature_2m.slice(0, N);
+        var winds  = h.wind_speed_10m.slice(0, N);
+        var wdirs  = h.wind_direction_10m.slice(0, N);
+        var sun    = h.sunshine_duration.slice(0, N).map(function(v) {
+          return isFinite(v) ? +(v / 60).toFixed(1) : 0;
+        });
+        var alder  = (aqH.alder_pollen || []).slice(0, N);
+        var birch  = (aqH.birch_pollen  || []).slice(0, N);
+        var grass  = (aqH.grass_pollen  || []).slice(0, N);
+
+        function xAxis(labels) {
+          return {
+            grid:   { color: '#f4f4f4' },
+            border: { color: '#e0e0e0' },
+            ticks:  {
+              maxRotation: 0, autoSkip: false, color: '#bbb', font: { size: 10 },
+              callback: function(_, i) { return labels[i] != null ? labels[i] : null; }
+            }
+          };
+        }
+
+        // Chart 1: Temp + Wind
+        var cW = new Chart(document.getElementById('cW').getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: idx,
+            datasets: [
+              { label: 'Temp °C', data: temps, yAxisID: 'yT',
+                borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.06)',
+                borderWidth: 2, pointRadius: 0, tension: 0.35, fill: true },
+              { label: 'Wind km/h', data: winds, yAxisID: 'yW',
+                borderColor: '#2563eb', backgroundColor: 'transparent',
+                borderWidth: 1.5, pointRadius: 0, tension: 0.25, borderDash: [3,2] }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { bottom: 28 } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { position:'top', align:'end',
+                labels: { boxWidth:10, padding:10, font:{size:11}, color:'#555' } },
+              tooltip: { callbacks: { label: function(ctx) {
+                return ctx.datasetIndex === 0
+                  ? ' ' + ctx.parsed.y.toFixed(1) + '°C'
+                  : ' ' + ctx.parsed.y.toFixed(0) + ' km/h';
+              }}}
+            },
+            scales: {
+              x:  xAxis(labels),
+              yT: { position:'left',
+                grid:{ color:'#f4f4f4' }, border:{ color:'#e0e0e0' },
+                ticks:{ callback: function(v){return v+'°';}, color:'#f97316', font:{size:10} } },
+              yW: { position:'right',
+                grid:{ drawOnChartArea:false }, border:{ color:'#e0e0e0' },
+                ticks:{ callback: function(v){return v+' km/h';}, color:'#2563eb', font:{size:10} } }
+            }
+          }
+        });
+        cW._windMeta = { dirs: wdirs, spds: winds };
+
+        // Chart 2: Sunshine
+        new Chart(document.getElementById('cS').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: idx,
+            datasets: [{ label:'Sunshine min', data: sun,
+              backgroundColor:'rgba(234,179,8,0.45)', borderWidth:0, borderRadius:2 }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend:{ display:false },
+              tooltip:{ callbacks:{ label: function(ctx){ return ' '+ctx.parsed.y.toFixed(0)+' min'; }}}},
+            scales: {
+              x: xAxis(labels),
+              y: { min:0, max:60,
+                grid:{ color:'#f4f4f4' }, border:{ color:'#e0e0e0' },
+                ticks:{ callback: function(v){return v+' min';}, font:{size:10} } }
+            }
+          }
+        });
+
+        // Chart 3: Pollen
+        new Chart(document.getElementById('cP').getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: idx,
+            datasets: [
+              { label:'Alder', data:alder, borderColor:'#16a34a',
+                backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 },
+              { label:'Birch', data:birch, borderColor:'#9333ea',
+                backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 },
+              { label:'Grass', data:grass, borderColor:'#ca8a04',
+                backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { position:'top', align:'end',
+                labels:{ boxWidth:10, padding:10, font:{size:11}, color:'#555' } },
+              tooltip: { callbacks: { label: function(ctx) {
+                return ' '+ctx.dataset.label+': '+(isFinite(ctx.parsed.y)?ctx.parsed.y.toFixed(0):'–')+' /m³';
+              }}}
+            },
+            scales: {
+              x: xAxis(labels),
+              y: { min:0,
+                grid:{ color:'#f4f4f4' }, border:{ color:'#e0e0e0' },
+                ticks:{ font:{size:10} } }
+            }
+          }
+        });
+
+        document.getElementById('upd').textContent =
+          'Updated ' + new Date().toLocaleString('en-GB',
+            {hour:'2-digit', minute:'2-digit'});
+
+      }).catch(function(err) {
+        showErr('Could not load data.\n\n' + err
+          + '\n\nWeather: ' + wUrl
+          + '\n\nAir: ' + aqUrl);
+      });
+
+    } catch(err) {
+      showErr('Script error: ' + err);
+    }
+  }
+  </script>
 </body>
 </html>
