@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Zurich Weather (MeteoSwiss ICON)</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: rgba(255,255,255,0.08);
+      --text: rgba(255,255,255,0.92);
+      --muted: rgba(255,255,255,0.70);
+      --accent: #7dd3fc;
+      --border: rgba(255,255,255,0.16);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    body {
+      margin: 0;
+      background: transparent;
+      font-family: var(--sans);
+      color: var(--text);
+    }
+    .wrap {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 14px 10px;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 520px;
+    }
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 650;
+      letter-spacing: 0.2px;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .day {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      min-height: 96px;
+    }
+    .dow {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .temp {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .kv {
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+    .kv b { color: var(--text); font-weight: 650; }
+    .foot {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .mono { font-family: var(--mono); }
+    .error {
+      background: rgba(239,68,68,0.16);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: rgba(255,255,255,0.92);
+      padding: 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app">
+    <div class="top">
+      <div>
+        <div class="title">Zurich 8001 — next 3 days</div>
+        <div class="subtitle">Sunrise/sunset • precip • wind (MeteoSwiss ICON via Open‑Meteo)</div>
+      </div>
+      <div class="subtitle mono" id="updated"></div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="foot">
+      <div>Data: <a href="https://open-meteo.com/en/docs/meteoswiss-api" target="_blank" rel="noreferrer">Open‑Meteo (MeteoSwiss ICON)</a></div>
+      <div class="mono" id="tz"></div>
+    </div>
+  </div>
+
+<script>
+(async function() {
+  // Zurich ~8001 (city center-ish). Adjust if you want a different point.
+  const latitude = 47.3769;
+  const longitude = 8.5417;
+  const timezone = "Europe/Zurich";
+
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude", latitude);
+  url.searchParams.set("longitude", longitude);
+  url.searchParams.set("timezone", timezone);
+
+  // We use daily values so it stays compact.
+  url.searchParams.set("daily", [
+    "temperature_2m_max",
+    "temperature_2m_min",
+    "precipitation_sum",
+    "wind_speed_10m_max",
+    "wind_gusts_10m_max",
+    "sunrise",
+    "sunset"
+  ].join(","));
+
+  // Force MeteoSwiss ICON CH model
+  url.searchParams.set("models", "meteoswiss_icon_ch");
+  url.searchParams.set("forecast_days", "3");
+
+  const grid = document.getElementById("grid");
+  const updated = document.getElementById("updated");
+  const tz = document.getElementById("tz");
+
+  try {
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+
+    const d = data.daily;
+    const times = d.time;
+
+    // Render cards
+    const fmtDay = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: timezone });
+    const fmtTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timezone });
+
+    grid.innerHTML = "";
+
+    for (let i = 0; i < times.length; i++) {
+      const date = new Date(times[i] + "T00:00:00");
+      const sunrise = new Date(d.sunrise[i]);
+      const sunset = new Date(d.sunset[i]);
+
+      const card = document.createElement("div");
+      card.className = "day";
+      card.innerHTML = `
+        <div class="dow">${fmtDay.format(date)}</div>
+        <div class="temp">${Math.round(d.temperature_2m_min[i])}–${Math.round(d.temperature_2m_max[i])}°C</div>
+        <div class="kv"><b>Sun</b> ${fmtTime.format(sunrise)}–${fmtTime.format(sunset)}</div>
+        <div class="kv"><b>Precip</b> ${d.precipitation_sum[i].toFixed(1)} mm</div>
+        <div class="kv"><b>Wind</b> ${Math.round(d.wind_speed_10m_max[i])} km/h (gusts ${Math.round(d.wind_gusts_10m_max[i])})</div>
+      `;
+      grid.appendChild(card);
+    }
+
+    tz.textContent = timezone;
+    updated.textContent = new Date().toLocaleString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+  } catch (err) {
+    grid.innerHTML = `
+      <div class="error">
+        Could not load forecast.\n\n${String(err)}\n\nURL: ${url.toString()}
+      </div>
+    `;
+    tz.textContent = timezone;
+  }
+})();
+</script>
+</body>
+</html>
