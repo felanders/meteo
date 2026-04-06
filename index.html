@@ -115,8 +115,8 @@
       var winds=h.wind_speed_10m.slice(0,N);
       var wdirs=h.wind_direction_10m.slice(0,N);
       var gusts=(h.wind_gusts_10m||[]).slice(0,N);
-      var sun=h.sunshine_duration.slice(0,N).map(function(v){return isFinite(v)?+(v/60).toFixed(1):0;});
-      var precip=(h.precipitation||[]).slice(0,N).map(function(v){return isFinite(v)?+v.toFixed(1):0;});
+      var sun=h.sunshine_duration.slice(0,N).map(function(v){return v!=null&&isFinite(v)?+(v/60).toFixed(1):0;});
+      var precip=(h.precipitation||[]).slice(0,N).map(function(v){return v!=null&&isFinite(v)?+v.toFixed(1):0;});
       var alder=(aqH.alder_pollen||[]).slice(0,N);
       var birch=(aqH.birch_pollen||[]).slice(0,N);
       var grass=(aqH.grass_pollen||[]).slice(0,N);
@@ -184,9 +184,10 @@
             legend:{position:'top',align:'end',
               labels:{boxWidth:10,padding:8,font:{size:10},color:'#555'}},
             tooltip:{callbacks:{label:function(ctx){
-              if(ctx.datasetIndex===0) return ' '+ctx.parsed.y.toFixed(0)+' min sun';
-              if(ctx.datasetIndex===1) return ' '+ctx.parsed.y.toFixed(1)+' mm rain';
-              return ' '+ctx.parsed.y.toFixed(1)+'\u00b0C';
+              var v=ctx.parsed.y; if(v==null||!isFinite(v)) return '';
+              if(ctx.datasetIndex===0) return ' '+v.toFixed(0)+' min sun';
+              if(ctx.datasetIndex===1) return ' '+v.toFixed(1)+' mm rain';
+              return ' '+v.toFixed(1)+'\u00b0C';
             }}}
           },
           scales:{
@@ -270,7 +271,7 @@
               var dirLabel=isFinite(dir)?Math.round(dir)+'\u00b0':'?';
               if(ctx.datasetIndex===0)
                 return ' Gust: '+( isFinite(ctx.parsed.y)?ctx.parsed.y.toFixed(0):'\u2013')+' km/h ('+dirLabel+')';
-              return ' Wind: '+ctx.parsed.y.toFixed(0)+' km/h ('+dirLabel+')';
+              return ' Wind: '+(ctx.parsed.y!=null?ctx.parsed.y.toFixed(0):'–')+' km/h ('+dirLabel+')';
             }}}
           },
           scales:{
