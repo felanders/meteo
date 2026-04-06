@@ -170,8 +170,7 @@
   aqUrl.searchParams.set("latitude", latitude);
   aqUrl.searchParams.set("longitude", longitude);
   aqUrl.searchParams.set("timezone", timezone);
-  aqUrl.searchParams.set("forecast_days", "3");
-  // Keep this lightweight: current values + daily pollen
+  // current + hourly pollen (air quality API uses hourly, not daily; we average the first 24h ourselves)
   aqUrl.searchParams.set("current", [
     "pm2_5",
     "pm10",
@@ -179,14 +178,12 @@
     "ozone",
     "european_aqi"
   ].join(","));
-  aqUrl.searchParams.set("daily", [
+  aqUrl.searchParams.set("hourly", [
     "alder_pollen",
     "birch_pollen",
-    "grass_pollen",
-    "mugwort_pollen",
-    "olive_pollen",
-    "ragweed_pollen"
+    "grass_pollen"
   ].join(","));
+  aqUrl.searchParams.set("forecast_hours", "72");
 
   const grid = document.getElementById("grid");
   const updated = document.getElementById("updated");
@@ -219,15 +216,17 @@
       const sunrise = new Date(d.sunrise[i]);
       const sunset = new Date(d.sunset[i]);
 
-      // Pollen (daily) can be null — render as “–” if missing
-      const pollen = (name, arr) => {
-        const v = arr?.[i];
-        return Number.isFinite(v) ? Math.round(v) : null;
+      // Pollen: API returns hourly data — take the max over 24h window for this day
+      const dailyMax = (arr) => {
+        if (!Array.isArray(arr)) return null;
+        const slice = arr.slice(i * 24, i * 24 + 24).filter(v => Number.isFinite(v));
+        if (slice.length === 0) return null;
+        return Math.round(Math.max(...slice));
       };
 
-      const alder = pollen("Alder", aq.daily?.alder_pollen);
-      const birch = pollen("Birch", aq.daily?.birch_pollen);
-      const grass = pollen("Grass", aq.daily?.grass_pollen);
+      const alder = dailyMax(aq.hourly?.alder_pollen);
+      const birch = dailyMax(aq.hourly?.birch_pollen);
+      const grass = dailyMax(aq.hourly?.grass_pollen);
 
       const pollenLine = [
         (alder === null ? null : `Alder ${alder}`),
