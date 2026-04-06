@@ -70,6 +70,9 @@
    try{
     var LAT=47.3769,LON=8.5417,TZ='Europe/Zurich';
 
+    // Keep left Y-axis label area consistent across charts
+    var LEFT_Y_AXIS_WIDTH=52;
+
     Chart.defaults.color='#aaa';
     Chart.defaults.borderColor='#eee';
     Chart.defaults.font.size=11;
@@ -146,7 +149,7 @@
             return (hh===0||hh===6||hh===12||hh===18)?'#ddd':'#f4f4f4';
           }},
           border:{color:'#e0e0e0'},
-          ticks:{maxRotation:0,autoSkip:false,color:'#bbb',font:{size:10},
+          ticks:{maxRotation:30,minRotation:30,autoSkip:false,color:'#bbb',font:{size:10},
             callback:function(_,i){return labels[i]||null;}}
         };
       }
@@ -263,7 +266,7 @@
               backgroundColor:'rgba(250,204,21,0.28)',borderWidth:0,borderRadius:1,order:3},
             {label:'Precip mm',type:'bar',data:precip,yAxisID:'yRain',
               backgroundColor:'rgba(59,130,246,0.5)',borderWidth:0,borderRadius:2,order:2},
-            {label:'Temp \u00b0C',type:'line',data:temps,yAxisID:'yT',
+            {label:'Temp °C',type:'line',data:temps,yAxisID:'yT',
               borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.05)',
               borderWidth:2,pointRadius:0,tension:0.35,fill:true,order:1}
           ]
@@ -278,15 +281,16 @@
               var v=ctx.parsed.y;if(v==null||!isFinite(v)) return '';
               if(ctx.datasetIndex===0) return ' '+v.toFixed(0)+' min sun';
               if(ctx.datasetIndex===1) return ' '+v.toFixed(1)+' mm rain';
-              return ' '+v.toFixed(1)+'\u00b0C';
+              return ' '+v.toFixed(1)+'°C';
             }}}
           },
           scales:{
             x:xAx(),
-            yT:{position:'left',grid:{color:'#f4f4f4'},border:{color:'#e0e0e0'},
-              ticks:{callback:function(v){return v+'\u00b0';},color:'#f97316',font:{size:10}}},
+            yT:{position:'left',min:-5,max:35,grid:{color:'#f4f4f4'},border:{color:'#e0e0e0'},
+              afterFit:function(scale){scale.width=LEFT_Y_AXIS_WIDTH;},
+              ticks:{callback:function(v){return v+'°';},color:'#f97316',font:{size:10}}},
             ySun:{display:false,min:0,max:60},
-            yRain:{position:'right',min:0,grid:{drawOnChartArea:false},border:{color:'#e0e0e0'},
+            yRain:{position:'right',min:0,max:50,grid:{drawOnChartArea:false},border:{color:'#e0e0e0'},
               ticks:{callback:function(v){return v+' mm';},color:'#3b82f6',font:{size:10}}}
           }
         }
@@ -301,7 +305,7 @@
         data:{
           labels:idx,
           datasets:[
-            {label:'Gusts (B\u00f6en)',type:'line',data:gusts,
+            {label:'Gusts (Böen)',type:'line',data:gusts,
               borderColor:'rgba(120,120,120,0.45)',backgroundColor:'transparent',
               borderWidth:1.5,pointRadius:0,tension:0.3,borderDash:[4,2],order:1},
             {label:'Wind km/h',type:'bar',data:winds,
@@ -318,17 +322,18 @@
             tooltip:{callbacks:{label:function(ctx){
               var v=ctx.parsed.y;
               var dir=wdirs[ctx.dataIndex];
-              var dl=isFinite(dir)?Math.round(dir)+'\u00b0':'?';
+              var dl=isFinite(dir)?Math.round(dir)+'°':'?';
               if(ctx.datasetIndex===0)
-                return ' Gust: '+(v!=null&&isFinite(v)?v.toFixed(0):'\u2013')+' km/h';
-              return ' Wind: '+(v!=null?v.toFixed(0):'\u2013')+' km/h ('+dl+')';
+                return ' Gust: '+(v!=null&&isFinite(v)?v.toFixed(0):'–')+' km/h';
+              return ' Wind: '+(v!=null?v.toFixed(0):'–')+' km/h ('+dl+')';
             }}}
           },
           scales:{
             x:xAx(),
             y:{min:0,max:25,
               grid:{color:'#f4f4f4'},border:{color:'#e0e0e0'},
-              ticks:{callback:function(v){return v+' km/h';},font:{size:10}}}
+              afterFit:function(scale){scale.width=LEFT_Y_AXIS_WIDTH;},
+              ticks:{padding:6,callback:function(v){return v+' km/h';},font:{size:10}}}
           }
         }
       });
@@ -357,12 +362,14 @@
             legend:{position:'top',align:'end',
               labels:{boxWidth:10,padding:10,font:{size:11},color:'#555'}},
             tooltip:{callbacks:{label:function(ctx){
-              return ' '+ctx.dataset.label+': '+(isFinite(ctx.parsed.y)?ctx.parsed.y.toFixed(0):'\u2013')+' /m\u00b3';
+              return ' '+ctx.dataset.label+': '+(isFinite(ctx.parsed.y)?ctx.parsed.y.toFixed(0):'–')+' /m³';
             }}}
           },
           scales:{
             x:xAx(),
-            y:{min:0,grid:{color:'#f4f4f4'},border:{color:'#e0e0e0'},ticks:{font:{size:10}}}
+            y:{min:0,max:1000,grid:{color:'#f4f4f4'},border:{color:'#e0e0e0'},
+              afterFit:function(scale){scale.width=LEFT_Y_AXIS_WIDTH;},
+              ticks:{padding:6,font:{size:10}}}
           }
         }
       });
